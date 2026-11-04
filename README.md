@@ -31,7 +31,7 @@ It runs on CPU (no GPU), needs no sudo for itself, and uses your Claude subscrip
 ### Linux / WSL2 / macOS
 
 ```bash
-git clone https://github.com/TripWagnerClaudeCode/public-reel-guide.git reel-guide
+git clone https://github.com/<owner>/public-reel-guide.git reel-guide
 cd reel-guide
 ./install.sh
 ```
@@ -50,7 +50,7 @@ If something is missing it tells you what to run:
    ```bash
    sudo apt update && sudo apt install -y python3-venv ffmpeg git
    curl -fsSL https://claude.ai/install.sh | bash   # Claude Code for Linux; then run: claude
-   git clone https://github.com/TripWagnerClaudeCode/public-reel-guide.git ~/reel-guide
+   git clone https://github.com/<owner>/public-reel-guide.git ~/reel-guide
    cd ~/reel-guide && ./install.sh
    ```
 3. Use the **Linux** `claude`, not the Windows `claude.exe`. reel-guide skips `.exe` files on PATH on its own. If it still can't find `claude`, set `REEL_GUIDE_CLAUDE=$HOME/.local/bin/claude` in `~/.config/reel-guide/env`.
