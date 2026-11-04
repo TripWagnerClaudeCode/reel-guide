@@ -1,0 +1,12 @@
+.venv/
+work/
+cookies.txt
+queue.db
+queue.db-*
+my_setup.md
+__pycache__/
+*.pyc
+.pytest_cache/
+*.tmp
+.*.tmp
+.env

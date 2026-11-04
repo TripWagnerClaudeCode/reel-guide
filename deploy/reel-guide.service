@@ -1,0 +1,17 @@
+[Unit]
+Description=reel-guide share-sheet endpoint (POST /reel, port 8765)
+# install.sh replaces __ROOT__ with the folder you cloned the repo into.
+# The server binds 127.0.0.1 at once and retries any extra --bind/REEL_GUIDE_BIND address
+# (e.g. a Tailscale IP that isn't up yet) every 30 s, so no network-online ordering is needed.
+
+[Service]
+WorkingDirectory=__ROOT__
+EnvironmentFile=-%h/.config/reel-guide/env
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart="__ROOT__/.venv/bin/python" "__ROOT__/server.py"
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
