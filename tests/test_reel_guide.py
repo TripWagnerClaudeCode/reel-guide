@@ -728,6 +728,62 @@ def test_load_env_file(tmp_path, monkeypatch):
         monkeypatch.delenv(k)
 
 
+def test_load_env_file_ignores_foreign_keys(tmp_path, monkeypatch):
+    f = tmp_path / "env"
+    f.write_text("PATH=/evil\nLD_PRELOAD=/evil.so\nREEL_GUIDE_T4=ok\n")
+    old_path = os.environ.get("PATH")
+    monkeypatch.delenv("LD_PRELOAD", raising=False)
+    monkeypatch.delenv("REEL_GUIDE_T4", raising=False)
+    rg.load_env_file(f)
+    assert os.environ.get("PATH") == old_path
+    assert "LD_PRELOAD" not in os.environ
+    assert os.environ["REEL_GUIDE_T4"] == "ok"
+    monkeypatch.delenv("REEL_GUIDE_T4")
+
+
+def test_sanitize_info_json_drops_cookies(tmp_path):
+    import json
+    p = tmp_path / "info.json"
+    p.write_text(json.dumps({"title": "T", "description": "cap", "webpage_url": "u", "tags": ["a"],
+                             "cookies": "sessionid=SENTINEL", "http_headers": {"Cookie": "SENTINEL"},
+                             "formats": [{"url": "x", "cookies": "SENTINEL"}]}))
+    rg.sanitize_info_json(p)
+    text = p.read_text()
+    assert "SENTINEL" not in text
+    assert json.loads(text) == {"title": "T", "description": "cap", "webpage_url": "u", "tags": ["a"]}
+
+
+def test_sanitize_info_json_bad_input_becomes_empty(tmp_path):
+    p = tmp_path / "info.json"
+    p.write_text("not json SENTINEL")
+    rg.sanitize_info_json(p)
+    assert p.read_text().strip() == "{}"
+    p.write_text("[1, 2]")
+    rg.sanitize_info_json(p)
+    assert p.read_text().strip() == "{}"
+
+
+def test_guide_stage_sanitizes_old_info_json(tmp_path, monkeypatch):
+    """Work dirs from older runs may hold a raw info.json; it is cleaned before claude runs."""
+    import json
+    wd = tmp_path / "w"
+    (wd / "frames").mkdir(parents=True)
+    (wd / ".download.tmp").mkdir()
+    (wd / ".download.tmp" / "video.info.json").write_text('{"cookies": "SENTINEL"}')
+    (wd / "info.json").write_text(json.dumps({"title": "T", "cookies": "SENTINEL"}))
+    seen = {}
+
+    def fake(cmd, **k):
+        seen["info"] = (wd / "info.json").read_text()
+        seen["tmp_exists"] = (wd / ".download.tmp").exists()
+        (wd / "guide.md").write_text(GUIDE, encoding="utf-8")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake)
+    rg.stage_guide(wd)
+    assert "SENTINEL" not in seen["info"] and seen["tmp_exists"] is False
+
+
 def test_load_env_file_missing_is_fine(tmp_path):
     rg.load_env_file(tmp_path / "nope")
 

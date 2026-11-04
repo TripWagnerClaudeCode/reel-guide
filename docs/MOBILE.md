@@ -131,7 +131,7 @@ Guides are plain Markdown files in `REEL_GUIDE_OUT_DIR`. Some ways to get them o
 
 | Request | Key? | Result |
 |---|---|---|
-| `POST /reel` with JSON `{"url": ...}`, form `url=...`, or plain text containing a link | yes | `202 {"status":"queued","id":N}` (`"duplicate": true` if that link is already queued or running); `400` no supported link; `401` bad key; `413` body > 16 KB |
+| `POST /reel` with JSON `{"url": ...}`, form `url=...`, or plain text containing a link | yes | `202 {"status":"queued","id":N}` (`"duplicate": true` if that link is already queued or running); `400` no supported link; `401` bad key; `413` body > 16 KB; `429` 20 jobs already waiting |
 | `GET /health` | no | `{"ok":true,"queued":N,"running":{"id":..,"since":..} or null}` (never shows URLs) |
 | `GET /jobs` | yes | the last 20 jobs: status, exit code, guide path, verdict, error |
 

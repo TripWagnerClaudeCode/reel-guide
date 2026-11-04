@@ -60,7 +60,7 @@ def build_payload(title: str, body: str, guide_path: str, *, topic: str,
                   now: _dt.datetime | None = None, quiet: str = "") -> dict:
     msg = body.strip() or "Build guide ready"
     if guide_path:
-        msg += f"\n{guide_path}"
+        msg += f"\n{os.path.basename(guide_path)}"  # never the full local path (has the username)
     payload = {"topic": topic, "title": title[:200], "message": msg[:3500],
                "tags": TAGS, "priority": 3}
     until = quiet_until(now or _dt.datetime.now().astimezone(), quiet)

@@ -45,6 +45,7 @@ MAX_BODY = 16 * 1024
 MAX_CONNECTIONS = 16     # concurrent HTTP connections across all listeners
 SOCKET_TIMEOUT = 10      # per-socket-operation timeout for HTTP connections
 BIND_RETRY_SECONDS = 30
+MAX_QUEUED = 20          # waiting jobs; more -> 429 (each job is one claude run on your plan)
 # Exact-host + video-path allowlist lives in reel_guide.allowed_url (l.instagram.com and
 # youtube.com/redirect are open redirectors, so no wildcard subdomains).
 # Characters allowed immediately before a URL in free text. Anything else (e.g. "=", "/", "@",
@@ -157,9 +158,14 @@ def extract_url(body: bytes, content_type: str = "") -> str | None:
 
 
 # ---------------------------------------------------------------- queue (sqlite)
+class QueueFull(Exception):
+    pass
+
+
 class Queue:
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, max_queued: int = MAX_QUEUED):
         self.db_path = Path(db_path)
+        self.max_queued = max_queued
         self.lock = threading.Lock()
         self.cond = threading.Condition(self.lock)
         with self._conn() as c:
@@ -200,6 +206,9 @@ class Queue:
                               "ORDER BY id LIMIT 1", (url,))
             if rows:
                 return rows[0]["id"], True
+            waiting = self._exec("SELECT COUNT(*) AS n FROM jobs WHERE status='queued'")[0]["n"]
+            if waiting >= self.max_queued:
+                raise QueueFull(f"{waiting} jobs already queued")
             conn = self._conn()
             try:
                 with conn:
@@ -448,7 +457,8 @@ class App:
         else:
             log(f"job {job['id']} failed: {error}")
             # reel_guide.py sends the success push itself; we only report failures.
-            self.notify("Reel guide failed", f"#{job['id']}: {error}"[:200], "")
+            shown = (error or "").replace(str(Path.home()), "~")  # no username in the push
+            self.notify("Reel guide failed", f"#{job['id']}: {shown}"[:200], "")
 
 
 class Server(ThreadingHTTPServer):
@@ -574,7 +584,10 @@ class Handler(BaseHTTPRequestHandler):
             url = None
         if not url:
             return self._send(400, {"error": "no instagram/tiktok/youtube URL found"})
-        job_id, dup = self.app.queue.enqueue(url)
+        try:
+            job_id, dup = self.app.queue.enqueue(url)
+        except QueueFull:
+            return self._send(429, {"error": f"queue full ({self.app.queue.max_queued} waiting)"})
         log(f"{'dedup' if dup else 'queued'} job {job_id}")
         resp = {"status": "queued", "id": job_id}
         if dup:

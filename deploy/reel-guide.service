@@ -6,7 +6,7 @@ Description=reel-guide share-sheet endpoint (POST /reel, port 8765)
 
 [Service]
 WorkingDirectory=__ROOT__
-EnvironmentFile=-%h/.config/reel-guide/env
+# Settings: server.py reads ~/.config/reel-guide/env itself (REEL_GUIDE_* keys only).
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
 ExecStart="__ROOT__/.venv/bin/python" "__ROOT__/server.py"

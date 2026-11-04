@@ -457,3 +457,38 @@ def test_unbindable_secondary_address_does_not_block(tmp_path):
         assert len(e.app.servers) == 1
     finally:
         e.app.stop()
+
+
+def test_queue_cap_raises(tmp_path):
+    q = server.Queue(tmp_path / "q.db", max_queued=2)
+    q.enqueue("https://youtu.be/a")
+    q.enqueue("https://youtu.be/b")
+    assert q.enqueue("https://youtu.be/a") == (1, True)  # dedup still answers when full
+    with pytest.raises(server.QueueFull):
+        q.enqueue("https://youtu.be/c")
+
+
+def test_queue_full_429(tmp_path):
+    e = Env(tmp_path, delay=3.0)
+    try:
+        e.app.queue.max_queued = 2
+        codes = []
+        for code in ("AAA1", "AAA2", "AAA3", "AAA4", "AAA5"):
+            s, _ = e.req("POST", "/reel", {"url": f"https://www.instagram.com/reel/{code}/"})
+            codes.append(s)
+            time.sleep(0.2)  # let the worker claim the first job
+        assert codes[:3] == [202, 202, 202] and 429 in codes[3:]
+    finally:
+        e.app.stop()
+
+
+def test_failure_push_hides_home_dir(tmp_path):
+    src = FAKE_WORKER.replace('"ERROR: download: boom"',
+                              f'"ERROR: guide: skill not found at {Path.home()}/x/SKILL.md"')
+    e = Env(tmp_path, worker_src=src)
+    try:
+        e.req("POST", "/reel", {"url": "https://www.instagram.com/reel/fail1/"})
+        e.wait_idle()
+        assert e.notes and str(Path.home()) not in e.notes[-1][1] and "~/x/SKILL.md" in e.notes[-1][1]
+    finally:
+        e.app.stop()

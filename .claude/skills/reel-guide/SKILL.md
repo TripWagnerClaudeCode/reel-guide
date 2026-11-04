@@ -10,9 +10,8 @@ You run headless. No one will answer questions. Do the work, write one file, sto
 ## Inputs (all in the current working directory)
 
 - `transcript.txt` — timestamped speech, lines like `[  1.2s] text`. **May be empty** (music-only reel). Empty is normal, not an error.
-- `info.json` — yt-dlp metadata. It can be very large (format lists, thumbnails). Do not read it all. Read only these fields:
-  `title`, `description` (the caption — often the most useful text), `uploader`, `channel`, `webpage_url`, `tags`, `duration`.
-  If the Read tool shows a huge single line, read a limited slice and look for those keys; ignore `formats`, `thumbnails`, `http_headers`.
+- `info.json` — trimmed yt-dlp metadata: `title`, `description` (the caption — often the most useful text), `uploader`,
+  `channel`, `webpage_url`, `tags`, `duration`. Some fields may be missing.
 - `frames/*.jpg` — up to 12 keyframes at scene cuts.
 
 ## Process

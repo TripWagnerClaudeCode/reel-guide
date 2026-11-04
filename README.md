@@ -81,7 +81,7 @@ A run takes roughly **1.5–2 minutes** for a short reel: under 20 s for downloa
 
 ## Settings
 
-All settings are optional. They go in `~/.config/reel-guide/env` (created by `install.sh`, see [`env.example`](env.example)) or in environment variables, which win.
+All settings are optional. They go in `~/.config/reel-guide/env` (created by `install.sh`, see [`env.example`](env.example)) or in environment variables, which win. Only `REEL_GUIDE_*` names are read from that file. Anything else is ignored.
 
 | Variable | Default | What |
 |---|---|---|
@@ -150,10 +150,14 @@ The video's speech, caption and on-screen text are treated as **untrusted**: a r
 
 If Claude changes any file other than `guide.md`, the run fails and the guide is thrown away.
 
+Before Claude runs, `info.json` is cut down to a few fields (title, caption, uploader, URL, tags, duration). yt-dlp also records the cookies it used there, which would include your Instagram login from `cookies.txt`, so those never reach Claude.
+
+**Web access is open on purpose.** Claude needs `WebSearch`/`WebFetch` to check the repos and tools a reel mentions, and they aren't limited to certain domains. A reel could try to talk Claude into fetching a URL with data in it. What Claude can see is the reel's own public transcript, caption and frames, plus your `my_setup.md` if you made one. So **never put secrets, IPs or private details in `my_setup.md`**. If you want it stricter, change `CLAUDE_ALLOWED` in `reel_guide.py` to domain rules such as `WebFetch(domain:github.com)`.
+
 ## Costs, limits and fair use
 
 - Each guide is **one `claude -p` run** on your plan, about 70–100 s.
-- **One job at a time** on the server. Whisper loads once per job, and a global lock keeps two whisper models out of RAM.
+- **One job at a time** on the server, with at most 20 waiting. More get HTTP 429. Whisper loads once per job, and a global lock keeps two whisper models out of RAM.
 - Downloading from Instagram/TikTok may break their Terms of Service. Keep volume low and use it for personal reference only.
 - Don't share your server or its key with other people. That would put their usage on your Claude plan.
 
@@ -171,3 +175,7 @@ env.example, my_setup.example.md  settings templates
 docs/MOBILE.md                    phone setup (iPhone + Android)
 tests/                            pytest, no network
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).

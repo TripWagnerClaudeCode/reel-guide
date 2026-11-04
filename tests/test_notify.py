@@ -44,8 +44,13 @@ def test_send_posts_json(monkeypatch):
     assert seen["url"] == "https://ntfy.example.org/"
     body = json.loads(seen["data"])
     assert body["topic"] == "my-topic" and body["title"] == "Title — x"
-    assert body["message"] == "Verdict\n/g.md" and "delay" not in body
+    assert body["message"] == "Verdict\ng.md" and "delay" not in body
     assert seen["headers"]["Authorization"] == "Bearer tk"
+
+
+def test_payload_has_filename_not_full_path():
+    p = notify.build_payload("t", "v", "/home/someuser/Reel Guides/2026-01-01 – X.md", topic="x")
+    assert "someuser" not in p["message"] and p["message"].endswith("2026-01-01 – X.md")
 
 
 def test_send_never_raises(monkeypatch):

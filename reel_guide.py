@@ -41,6 +41,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 ENV_FILE = Path(os.environ.get("REEL_GUIDE_ENV_FILE") or Path.home() / ".config" / "reel-guide" / "env")
 
 
+ENV_PREFIX = "REEL_GUIDE_"
+
+
 def load_env_file(path: Path = ENV_FILE) -> None:
     """Load KEY=VALUE lines into os.environ (variables already set win). A missing file is fine."""
     try:
@@ -55,8 +58,12 @@ def load_env_file(path: Path = ENV_FILE) -> None:
         key, val = key.strip().removeprefix("export ").strip(), val.strip()
         if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
             val = val[1:-1]
-        if key:
-            os.environ.setdefault(key, val)
+        if not key.startswith(ENV_PREFIX):
+            # Only our own settings: never PATH, LD_PRELOAD, PYTHON* etc. from a config file.
+            print(f"[reel-guide] env file: ignoring {key[:40]!r} (only {ENV_PREFIX}* is read)",
+                  file=sys.stderr)
+            continue
+        os.environ.setdefault(key, val)
 
 
 load_env_file()
@@ -97,6 +104,11 @@ CLAUDE_PROMPT = (
 CLAUDE_TOOLS = "Read,Write,WebSearch,WebFetch"
 CLAUDE_ALLOWED = "Read,Edit(./guide.md),WebSearch,WebFetch"
 CLAUDE_DISALLOWED = "Bash,NotebookEdit"
+# The only yt-dlp metadata fields kept in info.json. yt-dlp also writes a `cookies` field (the
+# session cookies it used, e.g. an Instagram login from cookies.txt) plus headers and URLs;
+# Claude reads info.json and has web access, so everything else is dropped before it lands.
+INFO_FIELDS = ("id", "title", "description", "uploader", "channel", "webpage_url", "tags",
+               "duration", "extractor")
 # Files claude may create/change in the work dir; anything else changing fails the stage.
 CLAUDE_OUTPUTS = frozenset({"guide.md", "claude.log"})
 
@@ -425,6 +437,18 @@ def normalize_cookies(path: Path) -> None:
             log(f"download: could not normalize cookies.txt: {e}")
 
 
+def sanitize_info_json(path: Path) -> None:
+    """Rewrite yt-dlp's info.json in place, keeping only INFO_FIELDS (top level only). Anything
+    unparseable becomes {}: unknown content never survives."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError, RecursionError):
+        data = None
+    keep = {k: data[k] for k in INFO_FIELDS if k in data} if isinstance(data, dict) else {}
+    if keep != data:  # also true for unparseable or non-object input
+        atomic_write(path, json.dumps(keep, ensure_ascii=False, indent=1) + "\n")
+
+
 # --------------------------------------------------------------------------- stages
 
 def stage_download(url: str, wd: Path, force: bool = False) -> Path:
@@ -457,6 +481,7 @@ def stage_download(url: str, wd: Path, force: bool = False) -> Path:
         raise StageError("download", "yt-dlp produced no video file")
     if not new_info.exists():
         raise StageError("download", "yt-dlp produced no info.json")
+    sanitize_info_json(new_info)  # drop cookies/headers before it reaches the work dir
     for old in wd.glob("video.*"):
         if old.is_file():
             old.unlink()
@@ -687,6 +712,11 @@ def stage_guide(wd: Path, force: bool = False) -> Path:
         return guide
     if guide.exists():
         guide.unlink()  # stale or invalid; never let a half guide count as done
+    # Claude's cwd is the work dir: make sure no raw yt-dlp metadata (cookies) is in reach, even
+    # in work dirs created by older versions or left by an interrupted download.
+    shutil.rmtree(wd / ".download.tmp", ignore_errors=True)
+    if (wd / "info.json").exists():
+        sanitize_info_json(wd / "info.json")
     cmd = claude_cmd(wd)
     before = snapshot(wd)
     log("guide: claude -p (this takes a few minutes)")
